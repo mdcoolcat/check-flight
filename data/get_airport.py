@@ -1,40 +1,38 @@
 #!/usr/bin/python
-# Copyright 2010 Google Inc.
-# Licensed under the Apache License, Version 2.0
-# http://www.apache.org/licenses/LICENSE-2.0
-
-# Google's Python Class
-# http://code.google.com/edu/languages/google-python-class/
+# Copyright 2012 DanielleMei
 
 import sys
 import re
+import pymongo
 
-"""Baby Names exercise
+"""Extract all international aiports from expedia website, store in mongodb
+   as {'city', 'country', 'code'}
 
-Here's what the html looks like in the baby.html files:
+Here's what the html looks like in the html files:
 ....
 <td class="city sorted">Badajoz</td>
 <td class="country">Spain</td>
 <td class="code"><a href="javascript:gotoFlight('BJZ');">BJZ</a></td>
+....
 
-Suggested milestones for incremental development:
- -Extract the year and print it
- -Extract the names and rank numbers and just print them
- -Get the names data into a dict and print it
- -Build the [year, 'name rank', ... ] list and print it
- -Fix main() to use the extract_names list
+
 """
 
-def extract_airports(filename):
+def extract_airports(filename, store):
   """
-  Given a file name for baby.html, returns a list starting with the year string
-  followed by the name-rank strings in alphabetical order.
-  ['2006', 'Aaliyah 91', Aaron 57', 'Abagail 895', ' ...]
+   read the file, extract airport info from the html with regex
+   store each aiport info in mongodb as document {'city', 'country', 'code'}
   """
-  # +++your code here+++
+  print filename
   f = open(filename, 'r')
   text = f.read()
   f.close()
+  
+  if store:
+      ## Database connection, db, collection
+      conn = pymongo.Connection()
+      db=conn.flight_db
+      ap = db.airports
 
   airport_list = []
   
@@ -43,10 +41,16 @@ def extract_airports(filename):
   if not match:
       print 'airport:rank not found...'
       exit(1)
-  print len(match)
   for tuples in match:
-  #    print ('***%s\n%s\n%s\n') % (tuples[0],tuples[1], tuples[2])
+      if store:
+          ap.insert({
+                  'city':tuples[0],
+                  'country':tuples[1],
+                  'code':tuples[2]
+          })
       airport_list.append(tuples[0] + ', ' + tuples[1] + ' - ' + tuples[2])
+  if store:
+    conn.disconnect()
   return airport_list
 
 
@@ -57,30 +61,33 @@ def main():
   args = sys.argv[1:]
 
   if not args:
-    print 'usage: [--summaryfile] file [file ...]'
+    print 'usage: [--db] file [file ...] [-w]'
     sys.exit(1)
 
   # Notice the summary flag and remove it from args if it is present.
-  summary = False
-  if args[0] == '--summaryfile':
-    summary = True
-    del args[0]
+  store_db = False
+  write_file = False
+  if args[0] == '--db':
+      store_db = True
+      del args[0]
+  if args[0] == '-w':
+      write_file = True
+      del args[0]
 
   # +++your code here+++
   # For each filename, get the names, then either print the text output
   # or write it to a summary file
   for filename in args:
-      airport_list = extract_airports(filename)
-      
-      if summary:   
-          sum_file = filename + '--summaryfile'
-          f = open(sum_file, 'w')
+      airport_list = extract_airports(filename, store_db)
+      if write_file: 
+        sum_file = filename + '--summaryfile'
+        f = open(sum_file, 'w')
       for s in airport_list:
-          if summary: 
+          if write_file: 
               f.write(s + '\n')
           else:
               print s
-      if summary:   
+      if write_file:   
           f.close()
 
 
