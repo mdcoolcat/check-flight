@@ -29,7 +29,7 @@ def section_map(section):
 
 #def main():
 def get_conf():
-    conf.read('flight.cfg')
+    conf.read('./config/flight.cfg')
     sections = conf.sections()
     flight_legs = section_map(sections[0])
     psg = section_map(sections[1])

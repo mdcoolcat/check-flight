@@ -1,11 +1,13 @@
 #!/usr/bin/python
 #Copyright 2012 DanielleMei
 
-import sys
-import re
+from sys import path
+from os import getcwd
 import urllib, urllib2
 import urlparse
-import codecs
+import re
+#import codecs
+path.append(getcwd() + '/Config')
 
 import config
 
