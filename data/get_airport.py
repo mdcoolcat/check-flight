@@ -18,6 +18,27 @@ Here's what the html looks like in the html files:
 
 """
 
+def get_airports(cities):
+    """
+    query from configure.py. print out the result and return list
+    """
+    ## Database connection, db, collection
+    conn = pymongo.Connection()
+    db=conn.flight_db
+    ap = db.airports
+
+    airport_list = []
+    for city in cities:
+        c = ap.find({
+            'city':{'$regex':'^'+city, '$options':'i'}
+            })
+        for info in c:
+            airport_list.append(info['city'] + ': ' + info['code'])
+            print '%s - %s' % (info['city'], info['code'])
+    conn.disconnect()
+
+    return airport_list
+
 def extract_airports(filename, store):
   """
    read the file, extract airport info from the html with regex
@@ -37,7 +58,8 @@ def extract_airports(filename, store):
   airport_list = []
   
   ## extract city,country,airport code
-  match = re.findall(r'<td\s*class=\"city sorted\">(.*?)<\/td>\s+<td\s*class=\"country\">(\w+?)</td>\s+<td\s*class=\"code\"><a\s*href=.+\">(\w+?)</a></td>\s+', text)
+  #match = re.findall(r'<td\s*class=\"city sorted\">(.*?)<\/td>\s+<td\s*class=\"country\">(\w+?)</td>\s+<td\s*class=\"code\"><a\s*href=.+\">(\w+?)</a></td>\s+', text)
+  match = re.findall(r'<td\s*class=\"city sorted\">(.*?)<\/td>\s+<td\s*class=\"country\">(\w+?)</td>\s+<td\s*class=\"code\"><a\s*href=.+\">(\w+?)</a><span\s*style=.*', text)
   if not match:
       print 'airport:rank not found...'
       exit(1)
@@ -61,13 +83,13 @@ def main():
   args = sys.argv[1:]
 
   if not args:
-    print 'usage: [--db] file [file ...] [-w]'
+    print 'usage: [-d] file [file ...] [-w]'
     sys.exit(1)
 
   # Notice the summary flag and remove it from args if it is present.
   store_db = False
   write_file = False
-  if args[0] == '--db':
+  if args[0] == '-d':
       store_db = True
       del args[0]
   if args[0] == '-w':

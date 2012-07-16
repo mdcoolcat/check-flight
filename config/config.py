@@ -27,8 +27,10 @@ def section_map(section):
     return d
 
 
-#def main():
 def get_conf():
+    '''
+     called by main.py
+    '''
     conf.read('./config/flight.cfg')
     sections = conf.sections()
     flight_legs = section_map(sections[0])
@@ -66,6 +68,11 @@ def get_conf():
             'passengers': passengers 
             }
 
+def update_conf(fields):
+    '''
+     update fields in the configure file 'flight.cfg'
+    '''
+    print fields
 
 if __name__ == '__main__':
     main()
