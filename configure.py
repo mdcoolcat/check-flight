@@ -42,7 +42,7 @@ def parse_args():
     ## list airports
     parser.add_argument(
             '--list', dest='list_ap', nargs = '+',
-            default=True, help='List airport code(s) by city(cities). Use \ before space')
+            help='List airport code(s) by city(cities). Use \ before space')
 
     return parser.parse_args()
 
@@ -51,7 +51,7 @@ def list_ap(cities):
 
 def main():
     args = parse_args()
-    if args.list_ap:
+    if args.list_ap is not None:
         list_ap(args.list_ap)
         exit(0)
 
