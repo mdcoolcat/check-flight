@@ -21,7 +21,16 @@ def get_page(url):
             url = url,
             headers = headers
     )
-    page = urllib2.urlopen(req)
+    try:
+        page = urllib2.urlopen(req)
+    except urllib2.URLError, e:
+        # later change to log...
+        print 'URLError: %s'% e.reason
+        print e.read()
+        return None 
+    except Exception, e:
+        print 'Unexpected exception: %s' % e 
+        return None
     
     #return page.read().decode(page.headers.getparam('charset'))
     return page.read()
@@ -85,7 +94,7 @@ def main():
     # get all USA airport
     c = db.airports.find({
         'country' : 'USA'
-        })
+        }, timeout=False)
     
     ## crawler
     trip_type = 'roundtrip'
@@ -99,14 +108,15 @@ def main():
         print depart
         query = construct_query(trip_type, depart, dest[0], psg)
         content = get_page(site+'?'+query)
-        
+        if content is None: 
+            continue
+        p = extract_lowest(content)
         prices.insert({
                 'date':datetime.datetime.utcnow(),
                 'dest':dest[0],
                 'depart':depart,
-                'price': extract_lowest(content)
+                'price': p 
         }, safe=True)
-    
     conn.disconnect()
 
 if __name__ == '__main__':
