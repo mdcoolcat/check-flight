@@ -8,6 +8,7 @@ import urlparse
 import re
 import pymongo
 import datetime
+import logging
 #import codecs
 #path.append(getcwd() + '../Config')
 
@@ -24,11 +25,13 @@ def get_page(url):
     try:
         page = urllib2.urlopen(req)
     except urllib2.URLError, e:
-        # later change to log...
+        logger = logging.getLogger('get_price')
+        logger.warn('URLError: ' + e.reason)
         print 'URLError: %s'% e.reason
-        print e.read()
         return None 
     except Exception, e:
+        logger = logging.getLogger('get_price')
+        logger.warn('Unexpected exception: ' + e)
         print 'Unexpected exception: %s' % e 
         return None
     
@@ -40,9 +43,9 @@ def extract_lowest(content):
     match = re.findall(pattern, content)
     if not match:
         print 'error: price not found...'
-        f = open('price.html', 'wb')
-        f.write(content)
-        f.close()
+        #f = open('price.html', 'wb')
+        #f.write(content)
+        #f.close()
         return -1
     return match[0]
 
@@ -84,40 +87,62 @@ def construct_query(trip, depart, dest, psg):
     return query
 
 def main():
+    #set logger
+    logger = logging.getLogger('get_price')
+    logging.basicConfig(filename='../Log/get_price.log',
+            level=logging.WARNING)
+    hdlr = logging.FileHandler('../Log/get_price.log')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    hdlr.setFormatter(formatter)
+    logger.addHandler(hdlr)
+#    logger.setLevel(logging.WARNING)
+
     site = 'http://www.expedia.com/Flights-search'
     dest = ['HKG', 'BJS']
 
     ## database
-    conn = pymongo.Connection()
-    db = conn.flight_db
-    prices = db.prices
-    # get all USA airport
-    c = db.airports.find({
-        'country' : 'USA'
-        }, timeout=False)
-    
-    ## crawler
-    trip_type = 'roundtrip'
-    psg = {
-            'children' : 0,
-            'adults'   : 1,
-            'seniors'  : 0
-    }
-    for airport in c:
-        depart = airport['code']
-        print depart
-        query = construct_query(trip_type, depart, dest[0], psg)
-        content = get_page(site+'?'+query)
-        if content is None: 
-            continue
-        p = extract_lowest(content)
-        prices.insert({
-                'date':datetime.datetime.utcnow(),
-                'dest':dest[0],
-                'depart':depart,
-                'price': p 
-        }, safe=True)
-    conn.disconnect()
+    conn = None
+    try:
+        conn = pymongo.Connection()
+        db = conn.flight_db
+        prices = db.prices
+        # get all USA airport
+        c = db.airports.find({
+            'country' : 'USA'
+            }, timeout=False)
+        
+        ## crawler
+        trip_type = 'roundtrip'
+        psg = {
+                'children' : 0,
+                'adults'   : 1,
+                'seniors'  : 0
+        }
+        for airport in c:
+            depart = airport['code']
+            print depart
+            query = construct_query(trip_type, depart, dest[0], psg)
+            content = get_page(site+'?'+query)
+            if content is None: 
+                continue
+            p = extract_lowest(content)
+            if p < 0:
+                logger.warn('price of ' + airport['city'] + ' not found')    
+                continue
+
+            prices.insert({
+                    'date':datetime.datetime.utcnow(),
+                    'dest':dest[0],
+                    'depart':depart,
+                    'price': int(p) 
+            }, safe=True)
+        conn.disconnect()
+    except (pymongo.errors.OperationFailure, pymongo.errors.AutoReconnect), e: 
+        logger.error(e)
+        print e
+        if conn is not None:
+            conn.disconnect()
+        exit(1)
 
 if __name__ == '__main__':
     main()
