@@ -1,7 +1,6 @@
 #!/usr/bin/python
 #Copyright 2012 DanielleMei
 
-from sys import path
 from os import getcwd
 import urllib, urllib2
 import urlparse
@@ -9,8 +8,15 @@ import re
 import pymongo
 import datetime
 import logging
+import sys, time
+from daemon import Daemon
 #import codecs
 #path.append(getcwd() + '../Config')
+
+class MyDaemon(Daemon):
+    def run(self):
+        the_main()
+        exit(0)
 
 
 def get_page(url):
@@ -86,11 +92,12 @@ def construct_query(trip, depart, dest, psg):
     })
     return query
 
-def main():
+def the_main():
     #set logger
     logger = logging.getLogger('get_price')
     logging.basicConfig(filename='../Log/get_price.log',
             level=logging.WARNING)
+    time.sleep(5)
     hdlr = logging.FileHandler('../Log/get_price.log')
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     hdlr.setFormatter(formatter)
@@ -142,7 +149,22 @@ def main():
         print e
         if conn is not None:
             conn.disconnect()
-        exit(1)
+        sys.exit(1)
 
 if __name__ == '__main__':
-    main()
+    #main()
+    daemon = MyDaemon('/tmp/daemon-example.pid')
+    if len(sys.argv) == 2:
+        if 'start' == sys.argv[1]:
+            daemon.start()
+        elif 'stop' == sys.argv[1]:
+            daemon.stop()
+        elif 'restart' == sys.argv[1]:
+            daemon.restart()
+        else:
+            print 'Unknown command'
+            sys.exit(2)
+        sys.exit(0)
+    else:
+        print "usage: %s start|stop|restart" % sys.argv[0]
+        sys.exit(2)
