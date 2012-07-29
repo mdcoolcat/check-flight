@@ -1,13 +1,13 @@
 #!/usr/bin/python
 #Copyright 2012 DanielleMei
 
-from sys import path
 from os import getcwd
 import urllib, urllib2
 import urlparse
 import re
+import sys
 #import codecs
-path.append(getcwd() + '/Config')
+sys.path.append(getcwd() + '/Config')
 
 import config
 
@@ -31,7 +31,7 @@ def extract_lowest(content):
     match = re.findall(pattern, content)
     if not match:
         print 'error: price not found...'
-        exit(1)
+        sys.exit(1)
     return match[0]
 
 def inside_format(d):

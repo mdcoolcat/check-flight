@@ -2,22 +2,17 @@
 #Copyright 2012 DanielleMei
 
 from os import getcwd
+import httplib
 import urllib, urllib2
 import urlparse
 import re
 import pymongo
 import datetime
 import logging
-import sys, time
-from daemon import Daemon
+import sys
+from shutil import copyfileobj
 #import codecs
 #path.append(getcwd() + '../Config')
-
-class MyDaemon(Daemon):
-    def run(self):
-        the_main()
-        exit(0)
-
 
 def get_page(url):
     headers = {
@@ -28,27 +23,34 @@ def get_page(url):
             url = url,
             headers = headers
     )
+    #content = ''
     try:
         page = urllib2.urlopen(req)
+        content = page.read()
+     #   copyfileobj(page, content)
     except urllib2.URLError, e:
         logger = logging.getLogger('get_price')
-        logger.warn('URLError: ' + e.reason)
+        logger.warning('URLError: ' + e.reason)
         print 'URLError: %s'% e.reason
+        return None 
+    except httplib.IncompleteRead, e:
+        logger = logging.getLogger('get_price')
+        logger.error('Unexpected exception: %s' % e)
+        print 'Unexpected exception: %s' % e 
         return None 
     except Exception, e:
         logger = logging.getLogger('get_price')
-        logger.warn('Unexpected exception: ' + e)
+        logger.error('Unexpected exception: %s' % e)
         print 'Unexpected exception: %s' % e 
         return None
     
     #return page.read().decode(page.headers.getparam('charset'))
-    return page.read()
+    return content 
 
 def extract_lowest(content):
     pattern = '<span id="lowestPrice">(\d+)</span>'
     match = re.findall(pattern, content)
     if not match:
-        print 'error: price not found...'
         #f = open('price.html', 'wb')
         #f.write(content)
         #f.close()
@@ -92,16 +94,19 @@ def construct_query(trip, depart, dest, psg):
     })
     return query
 
-def the_main():
-    #set logger
+def set_logger():
     logger = logging.getLogger('get_price')
     logging.basicConfig(filename='../Log/get_price.log',
-            level=logging.WARNING)
-    time.sleep(5)
+            level=logging.DEBUG)
     hdlr = logging.FileHandler('../Log/get_price.log')
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
+    return logger
+
+def main():
+    #set logger
+    logger = set_logger()
 #    logger.setLevel(logging.WARNING)
 
     site = 'http://www.expedia.com/Flights-search'
@@ -125,46 +130,38 @@ def the_main():
                 'adults'   : 1,
                 'seniors'  : 0
         }
-        for airport in c:
-            depart = airport['code']
-            print depart
-            query = construct_query(trip_type, depart, dest[0], psg)
-            content = get_page(site+'?'+query)
-            if content is None: 
-                continue
-            p = extract_lowest(content)
-            if p < 0:
-                logger.warn('price of ' + airport['city'] + ' not found')    
-                continue
+        for d in dest:
+        #d = dest[1]
+            logger.info('Begin collecting price to %s' % d)
+            c.rewind()
+            for airport in c:
+                depart = airport['code']
+                query = construct_query(trip_type, depart, d, psg)
+                content = get_page(site+'?'+query)
+                if content is None: 
+                    continue
+                p = extract_lowest(content)
+                if p < 0:
+                    logger.warning('price of ' + airport['city'] + ' not found')    
+                    continue
 
-            prices.insert({
-                    'date':datetime.datetime.utcnow(),
-                    'dest':dest[0],
-                    'depart':depart,
-                    'price': int(p) 
-            }, safe=True)
-        conn.disconnect()
+                prices.insert({
+                        'date':datetime.datetime.utcnow(),
+                        'dest':d,
+                        'depart':depart,
+                        'price': int(p) 
+                }, safe=True)
+        #conn.disconnect()
     except (pymongo.errors.OperationFailure, pymongo.errors.AutoReconnect), e: 
-        logger.error(e)
+        logger.error('Mongo DB error: %s' % e)
         print e
+    except Exception, e:
+        logger.error('Unexpected exception: %s' % e)
+        print 'Unexpected exception: %s' % e 
+    finally:
         if conn is not None:
             conn.disconnect()
         sys.exit(1)
 
 if __name__ == '__main__':
-    #main()
-    daemon = MyDaemon('/tmp/daemon-example.pid')
-    if len(sys.argv) == 2:
-        if 'start' == sys.argv[1]:
-            daemon.start()
-        elif 'stop' == sys.argv[1]:
-            daemon.stop()
-        elif 'restart' == sys.argv[1]:
-            daemon.restart()
-        else:
-            print 'Unknown command'
-            sys.exit(2)
-        sys.exit(0)
-    else:
-        print "usage: %s start|stop|restart" % sys.argv[0]
-        sys.exit(2)
+    main()
