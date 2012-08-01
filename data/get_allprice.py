@@ -11,6 +11,7 @@ import datetime
 import logging
 import sys
 from shutil import copyfileobj
+from traceback import format_exc
 #import codecs
 #path.append(getcwd() + '../Config')
 
@@ -35,13 +36,14 @@ def get_page(url):
         return None 
     except httplib.IncompleteRead, e:
         logger = logging.getLogger('get_price')
-        logger.error('Unexpected exception: %s' % e)
-        print 'Unexpected exception: %s' % e 
+        logger.warning('httplib Read exception: %s' % e)
+        print 'httplib read: %s' % e 
         return None 
     except Exception, e:
+        tb = format_exc()
         logger = logging.getLogger('get_price')
-        logger.error('Unexpected exception: %s' % e)
-        print 'Unexpected exception: %s' % e 
+        logger.error('Unexpected exception: %s' % tb)
+        print tb
         return None
     
     #return page.read().decode(page.headers.getparam('charset'))
@@ -94,23 +96,27 @@ def construct_query(trip, depart, dest, psg):
     })
     return query
 
-def set_logger():
+def setup_logger():
+    today = today = datetime.date.today()
+    print today
+    filename = '../Log/get_price_' + str(today) + '.log'
     logger = logging.getLogger('get_price')
-    logging.basicConfig(filename='../Log/get_price.log',
+    logging.basicConfig(filename = filename,
+            format = '%(asctime)s %(levelname)s %(message)s',
+            datefmt='%m-%d %H:%M',
             level=logging.DEBUG)
-    hdlr = logging.FileHandler('../Log/get_price.log')
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    hdlr.setFormatter(formatter)
+    hdlr = logging.FileHandler('filename')
+    #formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    #hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
     return logger
 
 def main():
     #set logger
-    logger = set_logger()
-#    logger.setLevel(logging.WARNING)
+    logger = setup_logger()
 
     site = 'http://www.expedia.com/Flights-search'
-    dest = ['HKG', 'BJS']
+    dest = ['BJS', 'SHA', 'HKG']
 
     ## database
     conn = None
@@ -142,7 +148,7 @@ def main():
                     continue
                 p = extract_lowest(content)
                 if p < 0:
-                    logger.warning('price of ' + airport['city'] + ' not found')    
+                    logger.info('price of ' + airport['city'] + ' not found')    
                     continue
 
                 prices.insert({
@@ -151,13 +157,17 @@ def main():
                         'depart':depart,
                         'price': int(p) 
                 }, safe=True)
+                logger.info('Got price from %s' % depart)
+            logger.info('Finish data of %s' % d)
         #conn.disconnect()
     except (pymongo.errors.OperationFailure, pymongo.errors.AutoReconnect), e: 
-        logger.error('Mongo DB error: %s' % e)
+        logger.warning('Mongo DB error: %s' % e)
         print e
     except Exception, e:
-        logger.error('Unexpected exception: %s' % e)
-        print 'Unexpected exception: %s' % e 
+        tb = format_exc()
+        logger = logging.getLogger('get_price')
+        logger.error('Unexpected exception: %s' % tb)
+        print tb
     finally:
         if conn is not None:
             conn.disconnect()
